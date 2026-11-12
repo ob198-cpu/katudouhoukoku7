@@ -18,6 +18,7 @@ const LOCAL_STORAGE_WARNING_BYTES = 3.5 * 1024 * 1024;
 const PENDING_RETRY_BASE_MS = 30000;
 const PENDING_RETRY_MAX_MS = 10 * 60 * 1000;
 let cloudRevision = null;
+let adminSnapshotSequence = 0;
 let pendingReportRetryTimer = null;
 const transientSnapshotCache = new Map();
 
@@ -609,12 +610,15 @@ async function refreshCloudPublic() {
     setStorageStatus("ローカル保存中: この端末のブラウザ内だけに保存されます。クラウド保存URLを設定してください。", "warn");
     return false;
   }
+  const sequence = adminSnapshotSequence;
   try {
     const data = await cloudRequest("publicConfig");
+    if (sequence !== adminSnapshotSequence) return true;
     applySnapshot(data);
     setStorageStatus("クラウド接続済み: 保存完了はサーバー確認後に表示します。", "ok");
     return true;
   } catch (error) {
+    if (sequence !== adminSnapshotSequence) return true;
     setStorageStatus("クラウド接続エラー: " + error.message, "error");
     return false;
   }
@@ -664,6 +668,7 @@ async function refreshCloudAdmin(password = adminPassword()) {
     return false;
   }
   const data = await cloudRequest("adminSnapshot", {}, password);
+  adminSnapshotSequence++;
   applySnapshot(data);
   await withPendingLock(() => {
     reconcileAdminCopies(data);
